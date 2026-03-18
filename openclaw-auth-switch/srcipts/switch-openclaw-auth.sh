@@ -81,6 +81,42 @@ show_status() {
     echo -e "${CYAN}===== OpenClaw Auth 状态 =====${NC}"
     echo -e "  当前账号:  ${GREEN}${current}${NC}"
     echo -e "  Profile:   $(auth_file)"
+
+    # 获取当前 token 状态
+    local token_status=""
+    local token_expiry=""
+    if command -v openclaw &>/dev/null; then
+        local oc_output
+        oc_output=$(openclaw models status 2>/dev/null || true)
+        # 解析 "openai-codex:default ok expires in 10d" 这样的行
+        local status_line
+        status_line=$(echo "$oc_output" | grep -E 'openai-codex:\S+\s+(ok|expired|error)' | head -n1 || true)
+        if [[ -n "$status_line" ]]; then
+            if echo "$status_line" | grep -q "ok"; then
+                token_expiry=$(echo "$status_line" | grep -oP 'expires in \K\S+' || true)
+                if [[ -n "$token_expiry" ]]; then
+                    # 提取天数判断是否快过期
+                    local days
+                    days=$(echo "$token_expiry" | grep -oP '^\d+' || echo "0")
+                    if [[ "$days" -le 2 ]]; then
+                        token_status="${YELLOW}⚠ 即将过期 (${token_expiry})${NC}"
+                    else
+                        token_status="${GREEN}✓ 正常，${token_expiry} 后过期${NC}"
+                    fi
+                else
+                    token_status="${GREEN}✓ 正常${NC}"
+                fi
+            elif echo "$status_line" | grep -q "expired"; then
+                token_status="${RED}✗ 已过期，请重新登录: $0 login ${current}${NC}"
+            else
+                token_status="${YELLOW}⚠ 状态异常${NC}"
+            fi
+        fi
+    fi
+
+    if [[ -n "$token_status" ]]; then
+        echo -e "  Token:     ${token_status}"
+    fi
     echo ""
 
     # 列出所有已保存的 label

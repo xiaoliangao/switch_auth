@@ -168,6 +168,17 @@ cmd_switch() {
 
 cmd_login_and_save() {
     local label="$1"
+
+    # 先备份当前账号，防止 login 覆盖后丢失
+    local current
+    current="$(get_current_label)"
+    local src
+    src="$(auth_file)"
+    if [[ "$current" != "unknown" && "$current" != "$label" && -f "$src" ]]; then
+        cp "$src" "$(backup_file "$current")"
+        echo -e "${CYAN}↩ 已自动备份当前 [${current}] 的授权${NC}"
+    fi
+
     echo -e "${CYAN}→ 正在启动 OpenClaw 登录流程...${NC}"
     openclaw models auth login --provider openai-codex
     cmd_save "$label"
